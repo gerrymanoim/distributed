@@ -21,7 +21,8 @@ def test_one_time():
     assert len(output["name"]) > 0
 
 
-def test_enable_disable_nvml():
+@pytest.mark.parametrize("nvml_setting", [True, False])
+def test_enable_disable_nvml(nvml_setting):
     try:
         pynvml.nvmlShutdown()
     except pynvml.NVMLError_Uninitialized:
@@ -29,13 +30,10 @@ def test_enable_disable_nvml():
     else:
         nvml.nvmlInitialized = False
 
-    with dask.config.set({"distributed.diagnostics.nvml": False}):
+    with dask.config.set({"distributed.diagnostics.nvml": nvml_setting}):
         nvml.init_once()
-        assert nvml.nvmlInitialized is False
-
-    with dask.config.set({"distributed.diagnostics.nvml": True}):
-        nvml.init_once()
-        assert nvml.nvmlInitialized is True
+        assert nvml.nvmlInitialized is nvml_setting
+        assert nvml.nvmlAttemptedInit is True
 
 
 def test_1_visible_devices():

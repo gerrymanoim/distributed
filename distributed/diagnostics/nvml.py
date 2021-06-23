@@ -8,31 +8,32 @@ except ImportError:
     pynvml = None
 
 nvmlInitialized = False
-nvmlLibraryNotFound = False
+nvmlAttemptedInit = False
 nvmlOwnerPID = None
 
 
 def init_once():
-    global nvmlInitialized, nvmlLibraryNotFound, nvmlOwnerPID
+    global nvmlInitialized, nvmlAttemptedInit, nvmlOwnerPID
 
     if dask.config.get("distributed.diagnostics.nvml") is False:
-        nvmlInitialized = False
+        nvmlAttemptedInit = True
         return
 
-    if pynvml is None or (nvmlInitialized is True and nvmlOwnerPID == os.getpid()):
+    if pynvml is None or (nvmlAttemptedInit is True and nvmlOwnerPID == os.getpid()):
         return
 
-    nvmlInitialized = True
-    nvmlOwnerPID = os.getpid()
+    nvmlAttemptedInit = True
     try:
         pynvml.nvmlInit()
-    except pynvml.NVMLError_LibraryNotFound:
-        nvmlLibraryNotFound = True
+        nvmlInitialized = True
+        nvmlOwnerPID = os.getpid()
+    except pynvml.NVMLError:
+        pass
 
 
 def device_get_count():
     init_once()
-    if nvmlLibraryNotFound or not nvmlInitialized:
+    if not nvmlInitialized:
         return 0
     else:
         return pynvml.nvmlDeviceGetCount()
@@ -41,8 +42,8 @@ def device_get_count():
 def _pynvml_handles():
     count = device_get_count()
     if count == 0:
-        if nvmlLibraryNotFound:
-            raise RuntimeError("PyNVML is installed, but NVML is not")
+        if not nvmlInitialized and nvmlAttemptedInit:
+            raise RuntimeError("Error running pynvml.nvmlInit()")
         else:
             raise RuntimeError("No GPUs available")
 
